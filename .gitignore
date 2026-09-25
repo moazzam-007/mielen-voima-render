@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+*$py.class
+.env
+.venv/
+env/
+venv/
+*.mp4
+*.mp3
+*.jpg
+*.png
+*.ass
+*.log
+sandbox_profiler.py
+.DS_Store

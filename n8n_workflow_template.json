@@ -1,0 +1,222 @@
+{
+  "name": "Mielen Voima - YouTube Shorts Production Pipeline",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 18 * * *"
+            }
+          ]
+        }
+      },
+      "name": "Daily Trigger (18:00)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [200, 300]
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "topic",
+              "value": "Miksi aivosi kaipaavat kaaosta? (Dopamiiniloukku)"
+            },
+            {
+              "name": "render_url",
+              "value": "https://mielen-voima-video-engine.onrender.com"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Config & Topic Selection",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [420, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={{ $env.GEMINI_API_KEY }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"contents\": [\n    {\n      \"parts\": [\n        {\n          \"text\": \"You are an elite Finnish YouTube Shorts scriptwriter for channel 'Mielen Voima' (Psychology & Self-Improvement). Target: 180-second YouTube Short (~250-300 Finnish words, 12-14 scenes).\\\\nTopic: '{{ $json.topic }}'\\\\n\\\\nCRITICAL ALGORITHM RULES:\\\\n1. Hook (Scene 1): Use a BOLD CHALLENGING CLAIM that stops scrolling immediately. NEVER use a generic question.\\\\n2. Structure: Scene 1 (Hook), Scenes 2-4 (Psychological Trap), Scenes 5-10 (3 Actionable Mechanisms), Scenes 11-13 (Micro-habit solution), Scene 14 (High-engagement CTA prompting viewer to comment a specific keyword like 'DOPAMIINI').\\\\n3. Scenes: Divide script into 12-14 scenes. Each scene has 1-2 spoken sentences.\\\\n4. Image Prompts: Each scene must have an image_prompt for Flux-1-schnell starting with 'Minimalist flat 2D vector stickman, extreme 9:16 vertical orientation, pure #FFFFFF white background, high-contrast black line art'. Include exactly ONE Amber Gold (#F59E0B) symbolic prop/icon, and specify a short bold ALL CAPS keyword overlay like 'MIKSI?', 'DOPAMIINI', 'STOP', '30 MIN'.\\\\n\\\\nReturn ONLY valid JSON with this exact schema:\\\\n{\\\\n  \\\\\"title\\\\\": \\\\\"Finnish Title\\\\\",\\\\n  \\\\\"description\\\\\": \\\\\"SEO description with #shorts #mielenvoima\\\\\",\\\\n  \\\\\"cta_keyword\\\\\": \\\\\"DOPAMIINI\\\\\",\\\\n  \\\\\"scenes\\\\\": [\\\\n    {\\\\n      \\\\\"scene_id\\\\\": 1,\\\\n      \\\\\"voiceover\\\\\": \\\\\"Finnish sentence\\\\\",\\\\n      \\\\\"image_prompt\\\\\": \\\\\"Image prompt\\\\\",\\\\n      \\\\\"keyword\\\\\": \\\\\"KAAOS\\\\\"\\\\n    }\\\\n  ]\\\\n}\"\n        }\n      ]\n    }\n  ],\n  \"generationConfig\": {\n    \"temperature\": 0.7,\n    \"responseMimeType\": \"application/json\"\n  }\n}",
+        "options": {}
+      },
+      "name": "Gemini 2.5 Flash Scriptwriter",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [640, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const responseText = $input.first().json.candidates[0].content.parts[0].text;\nconst parsed = JSON.parse(responseText);\nconst topic = $('Config & Topic Selection').first().json.topic;\nconst renderUrl = $('Config & Topic Selection').first().json.render_url;\n\nreturn {\n  topic: topic,\n  render_url: renderUrl,\n  title: parsed.title,\n  description: parsed.description,\n  cta_keyword: parsed.cta_keyword,\n  scenes: parsed.scenes\n};"
+      },
+      "name": "Parse & Validate Script",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [860, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.render_url }}/api/generate-short",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"topic\": \"{{ $json.topic }}\",\n  \"video_id\": \"mv_{{ $now.toFormat('yyyyMMdd_HHmm') }}\",\n  \"webhook_url\": \"{{ $env.N8N_WEBHOOK_URL || 'https://moazzamn8n.dpdns.org/webhook/mielen-voima-ready' }}\",\n  \"scenes\": {{ JSON.stringify($json.scenes) }}\n}",
+        "options": {}
+      },
+      "name": "Dispatch to Render Web Service",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1080, 300]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "mielen-voima-ready",
+        "options": {}
+      },
+      "name": "Webhook: Video Ready from Render",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [200, 560]
+    },
+    {
+      "parameters": {
+        "url": "={{ $('Config & Topic Selection').first()?.json?.render_url || 'https://mielen-voima-video-engine.onrender.com' }}{{ $json.body.download_url }}",
+        "responseFormat": "file",
+        "options": {}
+      },
+      "name": "Download Rendered MP4 Video",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [440, 560]
+    },
+    {
+      "parameters": {
+        "title": "={{ $json.body.topic }} #shorts #mielenvoima #psykologia",
+        "description": "=Tilaa Mielen Voima saadaksesi lisää oivalluksia mielen hallintaan. #shorts #mielenvoima #itseluottamus",
+        "categoryId": "27",
+        "privacyStatus": "public",
+        "options": {
+          "tags": "mielen voima, psykologia, elämäntapamuutos, mielenrauha, itseluottamus, dopamiini, shorts"
+        }
+      },
+      "name": "Publish to YouTube Shorts",
+      "type": "n8n-nodes-base.youTube",
+      "typeVersion": 1,
+      "position": [680, 560]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 13
+            }
+          ]
+        }
+      },
+      "name": "Keep-Awake Ping Trigger (13 min)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [200, 800]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://mielen-voima-video-engine.onrender.com/health",
+        "options": {}
+      },
+      "name": "Ping Render /health",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [440, 800]
+    }
+  ],
+  "connections": {
+    "Daily Trigger (18:00)": {
+      "main": [
+        [
+          {
+            "node": "Config & Topic Selection",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config & Topic Selection": {
+      "main": [
+        [
+          {
+            "node": "Gemini 2.5 Flash Scriptwriter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini 2.5 Flash Scriptwriter": {
+      "main": [
+        [
+          {
+            "node": "Parse & Validate Script",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse & Validate Script": {
+      "main": [
+        [
+          {
+            "node": "Dispatch to Render Web Service",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook: Video Ready from Render": {
+      "main": [
+        [
+          {
+            "node": "Download Rendered MP4 Video",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download Rendered MP4 Video": {
+      "main": [
+        [
+          {
+            "node": "Publish to YouTube Shorts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Keep-Awake Ping Trigger (13 min)": {
+      "main": [
+        [
+          {
+            "node": "Ping Render /health",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

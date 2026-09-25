@@ -1,0 +1,16 @@
+.git
+.gitignore
+.env
+.env.example
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache
+*.mp4
+*.mp3
+*.jpg
+*.png
+*.ass
+*.log
+README.md

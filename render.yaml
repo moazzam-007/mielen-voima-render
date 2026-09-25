@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: mielen-voima-video-engine
+    runtime: docker
+    plan: free
+    region: frankfurt # Low latency to Europe / Finland
+    branch: main
+    autoDeploy: true
+    healthCheckPath: /health
+    envVars:
+      - key: CF_ACCOUNT_ID_1
+        sync: false
+      - key: CF_API_TOKEN_1
+        sync: false
+      - key: CF_ACCOUNT_ID_2
+        sync: false
+      - key: CF_API_TOKEN_2
+        sync: false
+      - key: CF_ACCOUNT_ID_3
+        sync: false
+      - key: CF_API_TOKEN_3
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: API_SECRET_KEY
+        generateValue: true
