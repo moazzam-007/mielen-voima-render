@@ -27,7 +27,7 @@
             },
             {
               "name": "render_url",
-              "value": "https://mielen-voima-video-engine.onrender.com"
+              "value": "https://mielen-voima-render.onrender.com"
             }
           ]
         },
@@ -177,7 +177,7 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "https://mielen-voima-video-engine.onrender.com/health",
+        "url": "https://mielen-voima-render.onrender.com/health",
         "options": {}
       },
       "name": "Ping Render /health",
