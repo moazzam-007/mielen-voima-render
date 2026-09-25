@@ -65,6 +65,15 @@
       "parameters": {
         "method": "POST",
         "url": "={{ $json.render_url }}/api/generate-short",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "={{ $env.API_SECRET_KEY || 'mielen_voima_secure_2026' }}"
+            }
+          ]
+        },
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={\n  \"topic\": \"{{ $json.topic }}\",\n  \"video_id\": \"mv_{{ $now.toFormat('yyyyMMdd_HHmm') }}\",\n  \"webhook_url\": \"{{ $env.N8N_WEBHOOK_URL || 'https://moazzamn8n.dpdns.org/webhook/mielen-voima-ready' }}\",\n  \"scenes\": {{ JSON.stringify($json.scenes) }}\n}",
@@ -88,18 +97,55 @@
     },
     {
       "parameters": {
-        "url": "={{ $('Config & Topic Selection').first()?.json?.render_url || 'https://mielen-voima-video-engine.onrender.com' }}{{ $json.body.download_url }}",
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "status_check",
+              "leftValue": "={{ $json.body.status }}",
+              "rightValue": "completed",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "name": "Check Render Status",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [440, 560]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.body.download_url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "={{ $env.API_SECRET_KEY || 'mielen_voima_secure_2026' }}"
+            }
+          ]
+        },
         "responseFormat": "file",
         "options": {}
       },
       "name": "Download Rendered MP4 Video",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [440, 560]
+      "position": [680, 540]
     },
     {
       "parameters": {
-        "title": "={{ $json.body.topic }} #shorts #mielenvoima #psykologia",
+        "title": "={{ $('Webhook: Video Ready from Render').item.json.body.topic }} #shorts #mielenvoima #psykologia",
         "description": "=Tilaa Mielen Voima saadaksesi lisää oivalluksia mielen hallintaan. #shorts #mielenvoima #itseluottamus",
         "categoryId": "27",
         "privacyStatus": "public",
@@ -110,7 +156,7 @@
       "name": "Publish to YouTube Shorts",
       "type": "n8n-nodes-base.youTube",
       "typeVersion": 1,
-      "position": [680, 560]
+      "position": [920, 540]
     },
     {
       "parameters": {
@@ -118,12 +164,12 @@
           "interval": [
             {
               "field": "minutes",
-              "minutesInterval": 13
+              "minutesInterval": 10
             }
           ]
         }
       },
-      "name": "Keep-Awake Ping Trigger (13 min)",
+      "name": "Keep-Awake Ping Trigger (10 min)",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
       "position": [200, 800]
@@ -189,6 +235,17 @@
       "main": [
         [
           {
+            "node": "Check Render Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Render Status": {
+      "main": [
+        [
+          {
             "node": "Download Rendered MP4 Video",
             "type": "main",
             "index": 0
@@ -207,7 +264,7 @@
         ]
       ]
     },
-    "Keep-Awake Ping Trigger (13 min)": {
+    "Keep-Awake Ping Trigger (10 min)": {
       "main": [
         [
           {
