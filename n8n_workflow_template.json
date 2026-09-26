@@ -1,5 +1,5 @@
 {
-  "name": "Mielen Voima - YouTube Shorts Production Pipeline",
+  "name": "Mielen Voima - Automated Daily YouTube Shorts Pipeline",
   "nodes": [
     {
       "parameters": {
@@ -7,93 +7,77 @@
           "interval": [
             {
               "field": "cronExpression",
-              "expression": "0 18 * * *"
+              "expression": "0 7 * * *"
             }
           ]
         }
       },
-      "name": "Daily Trigger (18:00)",
+      "id": "node-trigger-daily",
+      "name": "⏰ Daily Trigger (07:00 UTC / 10:00 FI)",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
-      "position": [200, 300]
+      "position": [100, 300]
     },
     {
       "parameters": {
-        "values": {
-          "string": [
-            {
-              "name": "topic",
-              "value": "Miksi aivosi kaipaavat kaaosta? (Dopamiiniloukku)"
-            },
-            {
-              "name": "render_url",
-              "value": "https://mielen-voima-render.onrender.com"
-            }
-          ]
-        },
-        "options": {}
+        "jsCode": "const staticData = $getWorkflowStaticData('global');\nstaticData.healthCheckAttempts = 0;\nstaticData.pollAttempts = 0;\nreturn $input.all();"
       },
-      "name": "Config & Topic Selection",
-      "type": "n8n-nodes-base.set",
-      "typeVersion": 3.4,
-      "position": [420, 300]
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "=https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={{ $env.GEMINI_API_KEY }}",
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={\n  \"contents\": [\n    {\n      \"parts\": [\n        {\n          \"text\": \"You are an elite Finnish YouTube Shorts scriptwriter for channel 'Mielen Voima' (Psychology & Self-Improvement). Target: 180-second YouTube Short (~250-300 Finnish words, 12-14 scenes).\\\\nTopic: '{{ $json.topic }}'\\\\n\\\\nCRITICAL ALGORITHM RULES:\\\\n1. Hook (Scene 1): Use a BOLD CHALLENGING CLAIM that stops scrolling immediately. NEVER use a generic question.\\\\n2. Structure: Scene 1 (Hook), Scenes 2-4 (Psychological Trap), Scenes 5-10 (3 Actionable Mechanisms), Scenes 11-13 (Micro-habit solution), Scene 14 (High-engagement CTA prompting viewer to comment a specific keyword like 'DOPAMIINI').\\\\n3. Scenes: Divide script into 12-14 scenes. Each scene has 1-2 spoken sentences.\\\\n4. Image Prompts: Each scene must have an image_prompt for Flux-1-schnell starting with 'Minimalist flat 2D vector stickman, extreme 9:16 vertical orientation, pure #FFFFFF white background, high-contrast black line art'. Include exactly ONE Amber Gold (#F59E0B) symbolic prop/icon, and specify a short bold ALL CAPS keyword overlay like 'MIKSI?', 'DOPAMIINI', 'STOP', '30 MIN'.\\\\n\\\\nReturn ONLY valid JSON with this exact schema:\\\\n{\\\\n  \\\\\"title\\\\\": \\\\\"Finnish Title\\\\\",\\\\n  \\\\\"description\\\\\": \\\\\"SEO description with #shorts #mielenvoima\\\\\",\\\\n  \\\\\"cta_keyword\\\\\": \\\\\"DOPAMIINI\\\\\",\\\\n  \\\\\"scenes\\\\\": [\\\\n    {\\\\n      \\\\\"scene_id\\\\\": 1,\\\\n      \\\\\"voiceover\\\\\": \\\\\"Finnish sentence\\\\\",\\\\n      \\\\\"image_prompt\\\\\": \\\\\"Image prompt\\\\\",\\\\n      \\\\\"keyword\\\\\": \\\\\"KAAOS\\\\\"\\\\n    }\\\\n  ]\\\\n}\"\n        }\n      ]\n    }\n  ],\n  \"generationConfig\": {\n    \"temperature\": 0.7,\n    \"responseMimeType\": \"application/json\"\n  }\n}",
-        "options": {}
-      },
-      "name": "Gemini 2.5 Flash Scriptwriter",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [640, 300]
-    },
-    {
-      "parameters": {
-        "jsCode": "const responseText = $input.first().json.candidates[0].content.parts[0].text;\nconst parsed = JSON.parse(responseText);\nconst topic = $('Config & Topic Selection').first().json.topic;\nconst renderUrl = $('Config & Topic Selection').first().json.render_url;\n\nreturn {\n  topic: topic,\n  render_url: renderUrl,\n  title: parsed.title,\n  description: parsed.description,\n  cta_keyword: parsed.cta_keyword,\n  scenes: parsed.scenes\n};"
-      },
-      "name": "Parse & Validate Script",
+      "id": "node-reset-counters",
+      "name": "🔁 Reset Health/Poll Counters",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [860, 300]
+      "position": [300, 300]
     },
     {
       "parameters": {
-        "method": "POST",
-        "url": "={{ $json.render_url }}/api/generate-short",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "X-API-Key",
-              "value": "={{ $env.API_SECRET_KEY || 'mielen_voima_secure_2026' }}"
-            }
-          ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={\n  \"topic\": \"{{ $json.topic }}\",\n  \"video_id\": \"mv_{{ $now.toFormat('yyyyMMdd_HHmm') }}\",\n  \"webhook_url\": \"{{ $env.N8N_WEBHOOK_URL || 'https://moazzamn8n.dpdns.org/webhook/mielen-voima-ready' }}\",\n  \"scenes\": {{ JSON.stringify($json.scenes) }}\n}",
-        "options": {}
+        "method": "GET",
+        "url": "https://mielen-voima-render.onrender.com/health",
+        "options": {
+          "timeout": 45000
+        }
       },
-      "name": "Dispatch to Render Web Service",
+      "id": "node-wake-render-ping",
+      "name": "🔔 Wake Render Engine (GET /health)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1080, 300]
+      "position": [500, 300],
+      "continueOnFail": true
     },
     {
       "parameters": {
-        "httpMethod": "POST",
-        "path": "mielen-voima-ready",
-        "options": {}
+        "amount": 45,
+        "unit": "seconds"
       },
-      "name": "Webhook: Video Ready from Render",
-      "type": "n8n-nodes-base.webhook",
+      "id": "node-wait-coldstart",
+      "name": "⏳ Wait for Render Spin-up (45s)",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [700, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://mielen-voima-render.onrender.com/health",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "node-verify-awake",
+      "name": "🔍 Verify Render Awake",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [900, 300],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const staticData = $getWorkflowStaticData('global');\nstaticData.healthCheckAttempts = (staticData.healthCheckAttempts || 0) + 1;\n\nconst response = $input.first().json;\n\nreturn {\n  json: {\n    status: response.status || 'unreachable',\n    attempt: staticData.healthCheckAttempts\n  }\n};"
+      },
+      "id": "node-track-health-attempt",
+      "name": "🧮 Track Health Check Attempt",
+      "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [200, 560]
+      "position": [1100, 300]
     },
     {
       "parameters": {
@@ -105,8 +89,258 @@
           },
           "conditions": [
             {
-              "id": "status_check",
-              "leftValue": "={{ $json.body.status }}",
+              "id": "cond-healthy",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "healthy",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "node-check-healthy",
+      "name": "❓ Is Render Healthy?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1300, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "cond-max-health-retries",
+              "leftValue": "={{ $json.attempt }}",
+              "rightValue": 3,
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "node-max-health-retries",
+      "name": "❓ Max Health Retries Reached?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1300, 480]
+    },
+    {
+      "parameters": {
+        "jsCode": "const staticData = $getWorkflowStaticData('global');\nthrow new Error(`Mielen Voima: Render failed to wake after ${staticData.healthCheckAttempts} health-check attempts. Aborting today's run — check the Render dashboard.`);"
+      },
+      "id": "node-abort-unreachable",
+      "name": "🛑 Abort — Render Unreachable",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1500, 600]
+    },
+    {
+      "parameters": {
+        "amount": 30,
+        "unit": "seconds"
+      },
+      "id": "node-wait-retry-spinup",
+      "name": "⏳ Retry Wait (30s)",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [1100, 480]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "17V8wih7Yw4ZcJx0LQbMRxUe8ZnCyk4PvFDSwBnHnLH4",
+          "mode": "list"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "mielen_voima_master_60day",
+          "mode": "name"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "Status",
+              "lookupValue": "pending"
+            }
+          ]
+        },
+        "options": {
+          "limit": 2
+        }
+      },
+      "id": "node-get-sheet-topics",
+      "name": "📊 Get Today's 2 Topics from Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [1550, 300],
+      "alwaysOutputData": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "ew6mItBZu7P6dspU",
+          "name": "Google Sheets account 100 account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Prepare Today's 2 Video Slots (13:30 Daytime and 18:30 Evening Peak)\nconst inputRows = $input.all().map(i => i.json).filter(r => r.Topic_FI || r.topic);\n\n// Fallback sample topics if sheet is empty or being initialized\nconst defaultTopics = [\n  {\n    Day: 1,\n    Slot: 1,\n    Publish_Time: \"13:30\",\n    Topic_FI: \"Miksi aivosi kaipaavat kaaosta? (Dopamiiniloukku)\",\n    English_Meaning: \"Why your brain craves chaos\",\n    Primary_Keyword_FI: \"dopamiinivaje\",\n    Secondary_SEO_Tags: \"mieli, psykologia, aivot, dopamiini, shorts\",\n    CTA_Keyword: \"DOPAMIINI\",\n    Category: \"Aivot & Dopamiini\"\n  },\n  {\n    Day: 1,\n    Slot: 2,\n    Publish_Time: \"18:30\",\n    Topic_FI: \"Lopeta yliajattelu 10 sekunnissa: Aivojesi sammutusnappi\",\n    English_Meaning: \"Stop overthinking in 10 seconds\",\n    Primary_Keyword_FI: \"mielenrauha\",\n    Secondary_SEO_Tags: \"yliajattelu, ahdistus, rauha, stoalaisuus, shorts\",\n    CTA_Keyword: \"STOP\",\n    Category: \"Mielenrauha & Stressi\"\n  }\n];\n\nconst rowsToUse = inputRows.length >= 2 ? inputRows.slice(0, 2) : (inputRows.length === 1 ? [inputRows[0], defaultTopics[1]] : defaultTopics);\n\n// Calculate YouTube RFC 3339 UTC schedule timestamps for Europe/Helsinki\nfunction getHelsinkiUtcIso(timeStr) {\n  const now = new Date();\n  const dtf = new Intl.DateTimeFormat('en-US', { timeZone: 'Europe/Helsinki', timeZoneName: 'shortOffset' });\n  const parts = dtf.formatToParts(now);\n  const tzPart = parts.find(p => p.type === 'timeZoneName').value; // e.g. 'GMT+3' or 'GMT+2'\n  const offsetHours = parseInt(tzPart.replace('GMT', '') || '+3', 10);\n  \n  const [h, m] = timeStr.split(':').map(Number);\n  const todayYMD = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Helsinki' }).format(now);\n  const [year, month, day] = todayYMD.split('-').map(Number);\n  \n  return new Date(Date.UTC(year, month - 1, day, h - offsetHours, m, 0)).toISOString();\n}\n\nreturn rowsToUse.map((row, index) => {\n  const slot = index === 0 ? 1 : 2;\n  const targetTime = slot === 1 ? \"13:30\" : \"18:30\";\n  const publishAtIso = getHelsinkiUtcIso(targetTime);\n  \n  return {\n    json: {\n      day: row.Day || 1,\n      slot: slot,\n      publish_time: targetTime,\n      publishAt_iso: publishAtIso,\n      topic: row.Topic_FI || row.topic,\n      english_meaning: row.English_Meaning || \"\",\n      primary_keyword: row.Primary_Keyword_FI || \"psykologia\",\n      secondary_seo_tags: row.Secondary_SEO_Tags || \"mielen voima, psykologia, elämäntapamuutos, shorts\",\n      cta_keyword: row.CTA_Keyword || (slot === 1 ? \"DOPAMIINI\" : \"RAUHA\"),\n      category: row.Category || \"Psykologia\",\n      sheet_row_id: row.row_number || row.ID || null\n    }\n  };\n});"
+      },
+      "id": "node-prepare-daily-slots",
+      "name": "⚙️ Prepare 2 Daily Slots (13:30 & 18:30)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1750, 300]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "node-split-batches",
+      "name": "🔄 Loop Over 2 Slots (Sequential Batch)",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [1950, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={{ $env.GEMINI_API_KEY }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"contents\": [\n    {\n      \"parts\": [\n        {\n          \"text\": \"You are an elite Finnish YouTube Shorts scriptwriter for channel 'Mielen Voima' (Psychology & Self-Improvement). Target: 150-second YouTube Short. HARD CAP: total spoken script across all scenes combined must not exceed 230 Finnish words. This is a strict ceiling, not a guideline — do not pad individual scenes to hit a word count. 12-14 scenes.\\\\nTopic: '{{ $json.topic }}'\\\\nCategory: '{{ $json.category }}'\\\\nPrimary Keyword: '{{ $json.primary_keyword }}'\\\\nCall To Action Word: '{{ $json.cta_keyword }}'\\\\n\\\\nCRITICAL ALGORITHM RULES:\\\\n1. Hook (Scene 1): Use a BOLD CHALLENGING CLAIM stopping scroll immediately. Never use a generic question.\\\\n2. Structure: Scene 1 (Hook), Scenes 2-4 (Psychological Trap), Scenes 5-10 (3 Actionable Mechanisms), Scenes 11-13 (Micro-habit solution), Scene 14 (High-engagement CTA prompting viewer to comment '{{ $json.cta_keyword }}').\\\\n3. Spoken Language: Natural spoken Finnish with perfect grammar.\\\\n4. Visual Flux-1-schnell Prompts: Every scene must have an image_prompt starting exactly with: 'Minimalist flat 2D vector stickman, extreme 9:16 vertical orientation, pure #FFFFFF white background, high-contrast black line art'. Include exactly ONE Amber Gold (#F59E0B) symbolic prop/icon, and specify an ALL CAPS Finnish keyword overlay like '{{ $json.cta_keyword }}', 'MIKSI?', 'STOP', 'AIVOT'.\\\\n\\\\nReturn ONLY valid JSON matching this schema:\\\\n{\\\\n  \\\\\"title\\\\\": \\\\\"Finnish Title #shorts #mielenvoima\\\\\",\\\\n  \\\\\"description\\\\\": \\\\\"SEO description with #shorts #mielenvoima #psykologia\\\\\",\\\\n  \\\\\"cta_keyword\\\\\": \\\\\"{{ $json.cta_keyword }}\\\\\",\\\\n  \\\\\"scenes\\\\\": [\\\\n    {\\\\n      \\\\\"scene_id\\\\\": 1,\\\\n      \\\\\"voiceover\\\\\": \\\\\"Finnish sentence\\\\\",\\\\n      \\\\\"image_prompt\\\\\": \\\\\"Flux prompt\\\\\",\\\\n      \\\\\"keyword\\\\\": \\\\\"KEYWORD\\\\\"\\\\n    }\\\\n  ]\\\\n}\"\n        }\n      ]\n    }\n  ],\n  \"generationConfig\": {\n    \"temperature\": 0.7,\n    \"responseMimeType\": \"application/json\"\n  }\n}",
+        "options": {
+          "timeout": 45000
+        }
+      },
+      "id": "node-gemini-scriptwriter",
+      "name": "🤖 Gemini 2.5 Flash Scriptwriter",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2150, 300],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 10000
+    },
+    {
+      "parameters": {
+        "jsCode": "const slotContext = $('🔄 Loop Over 2 Slots (Sequential Batch)').first().json;\n\nconst REQUIRED_PREFIX = \"Minimalist flat 2D vector stickman, extreme 9:16 vertical orientation, pure #FFFFFF white background, high-contrast black line art\";\nconst MAX_TOTAL_WORDS = 240; // hard cap — keeps spoken runtime safely under the 180s Shorts ceiling\n\nlet parsed;\ntry {\n  const responseText = $input.first().json.candidates[0].content.parts[0].text;\n  parsed = JSON.parse(responseText);\n} catch (err) {\n  throw new Error(`Mielen Voima: Gemini returned unparseable output for topic \"${slotContext.topic}\" — ${err.message}`);\n}\n\nif (!Array.isArray(parsed.scenes) || parsed.scenes.length < 5) {\n  throw new Error(`Mielen Voima: Script for \"${slotContext.topic}\" returned ${parsed.scenes ? parsed.scenes.length : 0} scenes — fewer than the minimum 5 required.`);\n}\n\nconst cleanScenes = parsed.scenes.map((s, idx) => {\n  let imagePrompt = String(s.image_prompt || '').trim();\n  if (!imagePrompt.startsWith(REQUIRED_PREFIX)) {\n    imagePrompt = `${REQUIRED_PREFIX}, ${imagePrompt}`;\n  }\n  return {\n    scene_id: idx + 1,\n    voiceover: String(s.voiceover || '').trim(),\n    image_prompt: imagePrompt,\n    keyword: String(s.keyword || slotContext.cta_keyword).trim().toUpperCase()\n  };\n});\n\nconst totalWords = cleanScenes.reduce((sum, s) => sum + s.voiceover.split(/\\s+/).filter(Boolean).length, 0);\nif (totalWords > MAX_TOTAL_WORDS) {\n  throw new Error(`Mielen Voima: Script for \"${slotContext.topic}\" is ${totalWords} words — over the ${MAX_TOTAL_WORDS}-word safety cap. Regenerate with a tighter prompt rather than risk exceeding the 180s Shorts limit.`);\n}\n\nreturn {\n  ...slotContext,\n  title: parsed.title || `${slotContext.topic} #shorts #mielenvoima`,\n  description: parsed.description || `Tilaa @MielenVoima saadaksesi lisää oivalluksia. #shorts #mielenvoima`,\n  render_payload: {\n    topic: slotContext.topic,\n    video_id: `mv_d${slotContext.day}_s${slotContext.slot}_${Date.now()}`,\n    voice: \"fi-FI-HarriNeural\",\n    scenes: cleanScenes\n  }\n};"
+      },
+      "id": "node-parse-script",
+      "name": "📝 Parse & Format Script for Render",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2350, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://mielen-voima-render.onrender.com/api/generate-short",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "={{ $env.API_SECRET_KEY || 'mielen_voima_secure_2026' }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.render_payload) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "node-dispatch-render",
+      "name": "🚀 Dispatch to Render (/api/generate-short)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2550, 300],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 10000
+    },
+    {
+      "parameters": {
+        "jsCode": "const staticData = $getWorkflowStaticData('global');\nstaticData.pollAttempts = 0;\nreturn $input.all();"
+      },
+      "id": "node-reset-poll-counter",
+      "name": "🔁 Reset Poll Counter (Per Slot)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2750, 300]
+    },
+    {
+      "parameters": {
+        "amount": 75,
+        "unit": "seconds"
+      },
+      "id": "node-wait-rendering",
+      "name": "⏳ Wait for Video Rendering (75s)",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [2950, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://mielen-voima-render.onrender.com/api/status/{{ $('🚀 Dispatch to Render (/api/generate-short)').first().json.job_id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "={{ $env.API_SECRET_KEY || 'mielen_voima_secure_2026' }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 20000
+        }
+      },
+      "id": "node-poll-status",
+      "name": "📊 Poll Render Status (/api/status/{job_id})",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [3150, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const staticData = $getWorkflowStaticData('global');\nstaticData.pollAttempts = (staticData.pollAttempts || 0) + 1;\n\nconst MAX_POLL_ATTEMPTS = 20; // 20 x 25s ~= 8 min after the initial 75s wait\nconst response = $input.first().json;\n\nlet outcome;\nif (response.status === 'completed') {\n  outcome = 'completed';\n} else if (response.status === 'failed') {\n  outcome = 'failed';\n} else if (staticData.pollAttempts >= MAX_POLL_ATTEMPTS) {\n  outcome = 'timeout';\n} else {\n  outcome = 'retry';\n}\n\nreturn {\n  json: {\n    ...response,\n    pollAttempt: staticData.pollAttempts,\n    outcome\n  }\n};"
+      },
+      "id": "node-evaluate-poll",
+      "name": "🧮 Evaluate Poll Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [3350, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "status-completed",
+              "leftValue": "={{ $json.status }}",
               "rightValue": "completed",
               "operator": {
                 "type": "string",
@@ -118,14 +352,75 @@
         },
         "options": {}
       },
-      "name": "Check Render Status",
+      "id": "node-is-render-done",
+      "name": "❓ Is Video Render Complete?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [440, 560]
+      "position": [3550, 300]
     },
     {
       "parameters": {
-        "url": "={{ $json.body.download_url }}",
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "cond-outcome-failed",
+              "leftValue": "={{ $json.outcome }}",
+              "rightValue": "failed",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "cond-outcome-timeout",
+              "leftValue": "={{ $json.outcome }}",
+              "rightValue": "timeout",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "id": "node-should-abort-poll",
+      "name": "❓ Should We Abort? (Failed or Timed Out)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [3550, 480]
+    },
+    {
+      "parameters": {
+        "jsCode": "const job = $input.first().json;\nconst reason = job.outcome === 'failed'\n  ? `reported status \"failed\"`\n  : `did not complete after ${job.pollAttempt} poll attempts (~${Math.round(job.pollAttempt * 25 / 60)} min)`;\nthrow new Error(`Mielen Voima: Render job ${job.job_id || 'unknown'} ${reason}. Skipping this slot — check Render logs.`);"
+      },
+      "id": "node-abort-poll",
+      "name": "🛑 Abort — Render Job Did Not Complete",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [3750, 600]
+    },
+    {
+      "parameters": {
+        "amount": 25,
+        "unit": "seconds"
+      },
+      "id": "node-wait-retry-poll",
+      "name": "⏳ Poll Wait (25s)",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [3350, 480]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $json.download_url }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -135,140 +430,386 @@
             }
           ]
         },
-        "responseFormat": "file",
-        "options": {}
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file",
+              "outputPropertyName": "data"
+            }
+          },
+          "timeout": 120000
+        }
       },
-      "name": "Download Rendered MP4 Video",
+      "id": "node-download-mp4",
+      "name": "⬇️ Download Rendered MP4 Video",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [680, 540]
+      "position": [3800, 300]
     },
     {
       "parameters": {
-        "title": "={{ $('Webhook: Video Ready from Render').item.json.body.topic }} #shorts #mielenvoima #psykologia",
-        "description": "=Tilaa Mielen Voima saadaksesi lisää oivalluksia mielen hallintaan. #shorts #mielenvoima #itseluottamus",
+        "resource": "video",
+        "operation": "upload",
+        "title": "={{ $('📝 Parse & Format Script for Render').first().json.title }}",
+        "description": "={{ $('📝 Parse & Format Script for Render').first().json.description }}\\n\\nKommentoi '{{ $('🔄 Loop Over 2 Slots (Sequential Batch)').first().json.cta_keyword }}' jos tämä resonoi!",
+        "tags": "={{ $('🔄 Loop Over 2 Slots (Sequential Batch)').first().json.secondary_seo_tags }}",
         "categoryId": "27",
-        "privacyStatus": "public",
+        "privacyStatus": "private",
         "options": {
-          "tags": "mielen voima, psykologia, elämäntapamuutos, mielenrauha, itseluottamus, dopamiini, shorts"
+          "publishAt": "={{ $('🔄 Loop Over 2 Slots (Sequential Batch)').first().json.publishAt_iso }}",
+          "madeForKids": false,
+          "binaryPropertyName": "data"
         }
       },
-      "name": "Publish to YouTube Shorts",
+      "id": "node-youtube-schedule",
+      "name": "🎬 Schedule on YouTube Shorts (publishAt)",
       "type": "n8n-nodes-base.youTube",
       "typeVersion": 1,
-      "position": [920, 540]
-    },
-    {
-      "parameters": {
-        "rule": {
-          "interval": [
-            {
-              "field": "minutes",
-              "minutesInterval": 10
-            }
-          ]
+      "position": [4050, 300],
+      "credentials": {
+        "youTubeOAuth2Api": {
+          "id": "REPLACE_WITH_YOUR_YOUTUBE_CRED_ID",
+          "name": "YouTube account - Mielen Voima"
         }
-      },
-      "name": "Keep-Awake Ping Trigger (10 min)",
-      "type": "n8n-nodes-base.scheduleTrigger",
-      "typeVersion": 1.2,
-      "position": [200, 800]
+      }
     },
     {
       "parameters": {
-        "method": "GET",
-        "url": "https://mielen-voima-render.onrender.com/health",
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "17V8wih7Yw4ZcJx0LQbMRxUe8ZnCyk4PvFDSwBnHnLH4",
+          "mode": "list"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "mielen_voima_master_60day",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Status": "completed",
+            "YouTube_Publish_Time": "={{ $('🔄 Loop Over 2 Slots (Sequential Batch)').first().json.publishAt_iso }}",
+            "Render_Job_ID": "={{ $('📊 Poll Render Status (/api/status/{job_id})').first().json.job_id }}"
+          },
+          "matchingColumns": [
+            "Topic_FI"
+          ]
+        },
         "options": {}
       },
-      "name": "Ping Render /health",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [440, 800]
+      "id": "node-update-sheet-status",
+      "name": "✅ Mark Slot Completed in Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [4300, 300],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "ew6mItBZu7P6dspU",
+          "name": "Google Sheets account 100 account"
+        }
+      }
     }
   ],
   "connections": {
-    "Daily Trigger (18:00)": {
+    "⏰ Daily Trigger (07:00 UTC / 10:00 FI)": {
       "main": [
         [
           {
-            "node": "Config & Topic Selection",
+            "node": "🔁 Reset Health/Poll Counters",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Config & Topic Selection": {
+    "🔁 Reset Health/Poll Counters": {
       "main": [
         [
           {
-            "node": "Gemini 2.5 Flash Scriptwriter",
+            "node": "🔔 Wake Render Engine (GET /health)",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Gemini 2.5 Flash Scriptwriter": {
+    "🔔 Wake Render Engine (GET /health)": {
       "main": [
         [
           {
-            "node": "Parse & Validate Script",
+            "node": "⏳ Wait for Render Spin-up (45s)",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Parse & Validate Script": {
+    "⏳ Wait for Render Spin-up (45s)": {
       "main": [
         [
           {
-            "node": "Dispatch to Render Web Service",
+            "node": "🔍 Verify Render Awake",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Webhook: Video Ready from Render": {
+    "🔍 Verify Render Awake": {
       "main": [
         [
           {
-            "node": "Check Render Status",
+            "node": "🧮 Track Health Check Attempt",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Check Render Status": {
+    "🧮 Track Health Check Attempt": {
       "main": [
         [
           {
-            "node": "Download Rendered MP4 Video",
+            "node": "❓ Is Render Healthy?",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Download Rendered MP4 Video": {
+    "❓ Is Render Healthy?": {
       "main": [
         [
           {
-            "node": "Publish to YouTube Shorts",
+            "node": "📊 Get Today's 2 Topics from Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "❓ Max Health Retries Reached?",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Keep-Awake Ping Trigger (10 min)": {
+    "❓ Max Health Retries Reached?": {
       "main": [
         [
           {
-            "node": "Ping Render /health",
+            "node": "🛑 Abort — Render Unreachable",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "⏳ Retry Wait (30s)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "⏳ Retry Wait (30s)": {
+      "main": [
+        [
+          {
+            "node": "🔍 Verify Render Awake",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 Get Today's 2 Topics from Sheet": {
+      "main": [
+        [
+          {
+            "node": "⚙️ Prepare 2 Daily Slots (13:30 & 18:30)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "⚙️ Prepare 2 Daily Slots (13:30 & 18:30)": {
+      "main": [
+        [
+          {
+            "node": "🔄 Loop Over 2 Slots (Sequential Batch)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔄 Loop Over 2 Slots (Sequential Batch)": {
+      "main": [
+        [
+          {
+            "node": "🤖 Gemini 2.5 Flash Scriptwriter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🤖 Gemini 2.5 Flash Scriptwriter": {
+      "main": [
+        [
+          {
+            "node": "📝 Parse & Format Script for Render",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📝 Parse & Format Script for Render": {
+      "main": [
+        [
+          {
+            "node": "🚀 Dispatch to Render (/api/generate-short)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🚀 Dispatch to Render (/api/generate-short)": {
+      "main": [
+        [
+          {
+            "node": "🔁 Reset Poll Counter (Per Slot)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔁 Reset Poll Counter (Per Slot)": {
+      "main": [
+        [
+          {
+            "node": "⏳ Wait for Video Rendering (75s)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "⏳ Wait for Video Rendering (75s)": {
+      "main": [
+        [
+          {
+            "node": "📊 Poll Render Status (/api/status/{job_id})",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📊 Poll Render Status (/api/status/{job_id})": {
+      "main": [
+        [
+          {
+            "node": "🧮 Evaluate Poll Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🧮 Evaluate Poll Result": {
+      "main": [
+        [
+          {
+            "node": "❓ Is Video Render Complete?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "❓ Is Video Render Complete?": {
+      "main": [
+        [
+          {
+            "node": "⬇️ Download Rendered MP4 Video",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "❓ Should We Abort? (Failed or Timed Out)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "❓ Should We Abort? (Failed or Timed Out)": {
+      "main": [
+        [
+          {
+            "node": "🛑 Abort — Render Job Did Not Complete",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "⏳ Poll Wait (25s)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "⏳ Poll Wait (25s)": {
+      "main": [
+        [
+          {
+            "node": "📊 Poll Render Status (/api/status/{job_id})",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "⬇️ Download Rendered MP4 Video": {
+      "main": [
+        [
+          {
+            "node": "🎬 Schedule on YouTube Shorts (publishAt)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🎬 Schedule on YouTube Shorts (publishAt)": {
+      "main": [
+        [
+          {
+            "node": "✅ Mark Slot Completed in Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "✅ Mark Slot Completed in Sheet": {
+      "main": [
+        [
+          {
+            "node": "🔄 Loop Over 2 Slots (Sequential Batch)",
             "type": "main",
             "index": 0
           }
