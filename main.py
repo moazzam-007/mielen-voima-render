@@ -190,7 +190,7 @@ def root():
     return {
         "service": "Mielen Voima Video Engine",
         "status": "online",
-        "channel": "@MielenVoima",
+        "channel": "@Mielen_Voima",
         "endpoints": {
             "health": "/health",
             "generate": "/api/generate-short",
@@ -467,7 +467,7 @@ def process_video_job(job_id: str, payload: GenerateShortRequest):
         concat_txt = job_dir / "concat_list.txt"
         with open(concat_txt, "w", encoding="utf-8") as f:
             for c in scene_clips:
-                f.write(f"file '{c.name}'\n")
+                f.write(f"file 'clips/{c.name}'\n")
 
         raw_combined = job_dir / "raw_combined.mp4"
         cmd_concat = [
