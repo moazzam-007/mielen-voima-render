@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Privacy Policy — Mielen Voima Automation Engine</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card-bg: #1e293b;
+      --accent: #f59e0b;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      line-height: 1.7;
+      margin: 0;
+      padding: 2rem 1rem;
+    }
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      background-color: var(--card-bg);
+      padding: 3rem;
+      border-radius: 1rem;
+      border: 1px solid #334155;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+    }
+    h1 {
+      color: var(--accent);
+      margin-top: 0;
+      font-size: 2rem;
+    }
+    h2 {
+      color: #e2e8f0;
+      font-size: 1.3rem;
+      border-bottom: 1px solid #334155;
+      padding-bottom: 0.5rem;
+      margin-top: 2rem;
+    }
+    p, li {
+      color: var(--text-muted);
+    }
+    ul {
+      padding-left: 1.5rem;
+    }
+    a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+    a:hover {
+      text-decoration: underline;
+    }
+    .highlight-box {
+      background-color: rgba(245, 158, 11, 0.1);
+      border-left: 4px solid var(--accent);
+      padding: 1rem;
+      border-radius: 0.25rem;
+      margin: 1.5rem 0;
+    }
+    .back-link {
+      display: inline-block;
+      margin-bottom: 1.5rem;
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <a href="index.html" class="back-link">&larr; Back to Home</a>
+    <h1>Privacy Policy</h1>
+    <p><strong>Effective Date:</strong> September 26, 2026</p>
+    <p>
+      This Privacy Policy describes how <strong>Mielen Voima Automation Engine</strong> ("we", "us", or "our") collects, uses, and protects information when interacting with YouTube and Google services via Google Cloud APIs.
+    </p>
+
+    <h2>1. Information We Access and Collect</h2>
+    <p>
+      Our application accesses Google User Data solely through official Google Cloud OAuth 2.0 mechanisms. Specifically, we request access to the following YouTube scope:
+    </p>
+    <ul>
+      <li><code>https://www.googleapis.com/auth/youtube.upload</code>: Used exclusively to upload and schedule automated video Shorts to our verified YouTube channel (<strong>@MielenVoima</strong>).</li>
+    </ul>
+    <p>
+      We do not collect, read, or store any personal user emails, personal messages, contacts, payment details, or unrelated browsing history.
+    </p>
+
+    <h2>2. How We Use Google User Data</h2>
+    <p>
+      Any Google data accessed by Mielen Voima Automation Engine is strictly used for:
+    </p>
+    <ul>
+      <li>Automating video file upload and title/tag/description metadata application.</li>
+      <li>Setting the video release schedule (using YouTube API's <code>publishAt</code> parameter).</li>
+    </ul>
+
+    <div class="highlight-box">
+      <strong>Google API Services User Data Policy Compliance:</strong><br>
+      Mielen Voima Automation Engine's use and transfer to any other app of information received from Google APIs will adhere to the <a href="https://developers.google.com/terms/api-services-user-data-policy" target="_blank" rel="noopener noreferrer">Google API Services User Data Policy</a>, including the Limited Use requirements.
+    </div>
+
+    <h2>3. Data Storage and Protection</h2>
+    <p>
+      OAuth 2.0 access and refresh tokens are securely encrypted and stored within our private self-hosted automation infrastructure (n8n instance). No third parties have access to these tokens. Tokens are never transmitted to unauthorized external servers or sold to advertisers.
+    </p>
+
+    <h2>4. Third-Party Sharing</h2>
+    <p>
+      We do not sell, rent, trade, or transfer any Google user data or YouTube data to any third party, marketing platforms, or data brokers.
+    </p>
+
+    <h2>5. How to Revoke Access</h2>
+    <p>
+      You can review and revoke access granted to Mielen Voima Automation Engine at any time through the official Google Security Settings page:
+      <br>
+      <a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener noreferrer">https://myaccount.google.com/permissions</a>
+    </p>
+
+    <h2>6. Contact Information</h2>
+    <p>
+      If you have questions regarding this Privacy Policy or our data handling practices, please contact us at:
+      <br>
+      <strong>Email:</strong> support@mielenvoima.internal / YouTube Channel: <a href="https://www.youtube.com/@MielenVoima" target="_blank">@MielenVoima</a>
+    </p>
+  </div>
+</body>
+</html>
