@@ -455,15 +455,18 @@ def process_video_job(job_id: str, payload: GenerateShortRequest):
             jobs_db[job_id]["status"] = "assembling_video"
         scene_clips = []
         for scene in payload.scenes:
+            logger.info(f"[{job_id}] Rendering video clip for scene {scene.scene_id}/{len(payload.scenes)}...")
             img_p = images_dir / f"scene_{scene.scene_id:03d}.jpg"
             aud_p = audio_dir / f"scene_{scene.scene_id:03d}.mp3"
             clip_p = clips_dir / f"scene_{scene.scene_id:03d}.mp4"
             render_scene_clip(img_p, aud_p, clip_p, scene.scene_id)
             scene_clips.append(clip_p)
+            logger.info(f"[{job_id}] Scene {scene.scene_id}/{len(payload.scenes)} video clip ready.")
         with JOBS_LOCK:
             jobs_db[job_id]["progress"] = 75
 
         # 4. Stream-Copy Concatenation
+        logger.info(f"[{job_id}] Concatenating all {len(scene_clips)} scene clips into raw video...")
         concat_txt = job_dir / "concat_list.txt"
         with open(concat_txt, "w", encoding="utf-8") as f:
             for c in scene_clips:

@@ -1,6 +1,6 @@
 # Mielen Voima — Video Generation Engine (Render Web Service)
 
-Production-grade automated video generation microservice for the **Mielen Voima** (@MielenVoima) Finnish YouTube Shorts channel. Built with FastAPI, FFmpeg, Cloudflare Workers AI (Flux-1-schnell), Edge TTS, and Groq Whisper.
+Production-grade automated video generation microservice for the **Mielen Voima** (@Mielen_Voima) Finnish YouTube Shorts channel. Built with FastAPI, FFmpeg, Cloudflare Workers AI (Flux-1-schnell), Edge TTS, and Groq Whisper.
 
 ---
 
