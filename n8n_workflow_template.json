@@ -139,13 +139,33 @@
     },
     {
       "parameters": {
+        "chatId": "1306188611",
+        "text": "=🚨 Mielen Voima: Render Unreachable!\n\nRender engine failed to wake up after 3 attempts (~2.5 mins).\nToday's scheduled run has been aborted. Please check Render dashboard.\n⏰ {{ $now.setZone('Asia/Kolkata').toFormat('HH:mm') }} IST",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "node-telegram-render-offline",
+      "name": "📨 Telegram - Render Offline Alert",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [1500, 480],
+      "credentials": {
+        "telegramApi": {
+          "id": "NFRtoAZzCQgOlUda",
+          "name": "html to imag bot render puptr"
+        }
+      }
+    },
+    {
+      "parameters": {
         "jsCode": "const staticData = $getWorkflowStaticData('global');\nthrow new Error(`Mielen Voima: Render failed to wake after ${staticData.healthCheckAttempts} health-check attempts. Aborting today's run — check the Render dashboard.`);"
       },
       "id": "node-abort-unreachable",
       "name": "🛑 Abort — Render Unreachable",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1500, 600]
+      "position": [1700, 480]
     },
     {
       "parameters": {
@@ -398,13 +418,33 @@
     },
     {
       "parameters": {
+        "chatId": "1306188611",
+        "text": "=❌ Mielen Voima: Video Render Failed!\n\n🎬 Topic: {{ $('🔄 Loop Over 2 Slots (Sequential Batch)').first().json.topic }}\n📌 Reason: {{ $json.outcome === 'failed' ? 'Render reported status: FAILED' : 'Poll timeout after 20 attempts (~8 mins)' }}\nJob ID: {{ $json.job_id || 'unknown' }}\n⏰ {{ $now.setZone('Asia/Kolkata').toFormat('HH:mm') }} IST",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "node-telegram-render-failed",
+      "name": "📨 Telegram - Render Job Failed Alert",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [3750, 480],
+      "credentials": {
+        "telegramApi": {
+          "id": "NFRtoAZzCQgOlUda",
+          "name": "html to imag bot render puptr"
+        }
+      }
+    },
+    {
+      "parameters": {
         "jsCode": "const job = $input.first().json;\nconst reason = job.outcome === 'failed'\n  ? `reported status \"failed\"`\n  : `did not complete after ${job.pollAttempt} poll attempts (~${Math.round(job.pollAttempt * 25 / 60)} min)`;\nthrow new Error(`Mielen Voima: Render job ${job.job_id || 'unknown'} ${reason}. Skipping this slot — check Render logs.`);"
       },
       "id": "node-abort-poll",
       "name": "🛑 Abort — Render Job Did Not Complete",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [3750, 600]
+      "position": [3950, 480]
     },
     {
       "parameters": {
@@ -510,6 +550,54 @@
           "name": "Google Sheets account 100 account"
         }
       }
+    },
+    {
+      "parameters": {
+        "chatId": "1306188611",
+        "text": "=✅ Mielen Voima Short Scheduled on YouTube!\n\n🎬 Day {{ $('🔄 Loop Over 2 Slots (Sequential Batch)').first().json.day }} | Slot {{ $('🔄 Loop Over 2 Slots (Sequential Batch)').first().json.slot }} ({{ $('🔄 Loop Over 2 Slots (Sequential Batch)').first().json.publish_time }} FI)\n📌 {{ $('📝 Parse & Format Script for Render').first().json.title }}\n🔑 CTA Word: {{ $('🔄 Loop Over 2 Slots (Sequential Batch)').first().json.cta_keyword }}\n⏰ YouTube Schedule Time: {{ $('🔄 Loop Over 2 Slots (Sequential Batch)').first().json.publishAt_iso }}\n🔗 https://www.youtube.com/shorts/{{ $('🎬 Schedule on YouTube Shorts (publishAt)').first().json.id }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "node-telegram-success",
+      "name": "📨 Telegram - Success Alert",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [4550, 300],
+      "credentials": {
+        "telegramApi": {
+          "id": "NFRtoAZzCQgOlUda",
+          "name": "html to imag bot render puptr"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "node-error-trigger",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [100, 700]
+    },
+    {
+      "parameters": {
+        "chatId": "1306188611",
+        "text": "=🚨 Mielen Voima Workflow Error!\n\n📌 Node: {{ $json.execution.lastNodeExecuted }}\n❌ Error: {{ $json.execution.error.message }}\n🔗 {{ $json.execution.url }}\n⏰ {{ $now.setZone('Asia/Kolkata').toFormat('HH:mm') }} IST",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "id": "node-telegram-global-error",
+      "name": "📨 Telegram - Global Error Alert",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [320, 700],
+      "credentials": {
+        "telegramApi": {
+          "id": "NFRtoAZzCQgOlUda",
+          "name": "html to imag bot render puptr"
+        }
+      }
     }
   ],
   "connections": {
@@ -601,7 +689,7 @@
       "main": [
         [
           {
-            "node": "🛑 Abort — Render Unreachable",
+            "node": "📨 Telegram - Render Offline Alert",
             "type": "main",
             "index": 0
           }
@@ -609,6 +697,17 @@
         [
           {
             "node": "⏳ Retry Wait (30s)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📨 Telegram - Render Offline Alert": {
+      "main": [
+        [
+          {
+            "node": "🛑 Abort — Render Unreachable",
             "type": "main",
             "index": 0
           }
@@ -758,7 +857,7 @@
       "main": [
         [
           {
-            "node": "🛑 Abort — Render Job Did Not Complete",
+            "node": "📨 Telegram - Render Job Failed Alert",
             "type": "main",
             "index": 0
           }
@@ -766,6 +865,17 @@
         [
           {
             "node": "⏳ Poll Wait (25s)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📨 Telegram - Render Job Failed Alert": {
+      "main": [
+        [
+          {
+            "node": "🛑 Abort — Render Job Did Not Complete",
             "type": "main",
             "index": 0
           }
@@ -809,7 +919,29 @@
       "main": [
         [
           {
+            "node": "📨 Telegram - Success Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📨 Telegram - Success Alert": {
+      "main": [
+        [
+          {
             "node": "🔄 Loop Over 2 Slots (Sequential Batch)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "📨 Telegram - Global Error Alert",
             "type": "main",
             "index": 0
           }
