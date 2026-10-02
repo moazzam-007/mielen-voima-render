@@ -12,4 +12,5 @@ venv/
 *.ass
 *.log
 sandbox_profiler.py
+FI_Workflow.json
 .DS_Store

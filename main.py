@@ -18,6 +18,8 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field, field_validator
 import requests
 import edge_tts
+from pydub import AudioSegment
+from pydub.silence import detect_leading_silence
 from dotenv import load_dotenv
 
 # Load local environment if present
@@ -48,6 +50,7 @@ ALLOWED_WEBHOOK_HOSTS = [
 
 VOICE_DEFAULT = "fi-FI-HarriNeural"
 FLUX_MODEL = "@cf/black-forest-labs/flux-1-schnell"
+TARGET_GAP_MS = 100
 
 # Global In-Memory Job Registry and Concurrency Lock (Max 1 Render Job for 512MB RAM safety)
 jobs_db = {}
@@ -225,6 +228,27 @@ def get_audio_duration(file_path: Path) -> float:
     stdout = run_command(cmd, timeout=30)
     return float(stdout.strip())
 
+def trim_trailing_silence(audio_path: Path, target_gap_ms: int = TARGET_GAP_MS):
+    """
+    Trims excess trailing silence from Edge TTS output so scenes transition cleanly
+    with exact target_gap_ms (100ms) buffer. Never trims if already <= target_gap_ms.
+    Last word is 100% preserved with a 15ms anti-pop micro fade-out.
+    """
+    try:
+        audio = AudioSegment.from_file(str(audio_path))
+        if len(audio) < 200:
+            return
+        thresh = audio.dBFS - 14
+        reversed_audio = audio.reverse()
+        trailing_silence = detect_leading_silence(reversed_audio, silence_threshold=thresh, chunk_size=10)
+        if trailing_silence > target_gap_ms:
+            excess = trailing_silence - target_gap_ms
+            trimmed = audio[:len(audio) - excess].fade_out(15)
+            trimmed.export(str(audio_path), format="mp3", bitrate="192k")
+            logger.info(f"Trimmed {excess}ms excess silence from {audio_path.name} (retained {target_gap_ms}ms gap)")
+    except Exception as e:
+        logger.warning(f"Trailing silence trim failed for {audio_path.name}, keeping original: {e}")
+
 async def generate_scene_audio(text: str, voice: str, output_path: Path):
     """Generates scene voiceover audio with Edge TTS and automatic retry."""
     for attempt in range(1, 4):
@@ -234,6 +258,7 @@ async def generate_scene_audio(text: str, voice: str, output_path: Path):
             communicate = edge_tts.Communicate(text, voice, rate="+5%")
             await asyncio.wait_for(communicate.save(str(output_path)), timeout=45)
             if output_path.exists() and output_path.stat().st_size > 500:
+                trim_trailing_silence(output_path, target_gap_ms=TARGET_GAP_MS)
                 return
         except Exception as e:
             logger.warning(f"Audio attempt {attempt} failed for {output_path.name}: {e}")
