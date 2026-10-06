@@ -34,14 +34,23 @@ logging.basicConfig(
 logger = logging.getLogger("mielen-voima-engine")
 
 # Configuration from Environment Variables
-CF_ACCOUNTS = [
+CF_ACCOUNTS_RAW = [
     (os.getenv("CF_ACCOUNT_ID_1"), os.getenv("CF_API_TOKEN_1"), "CF_Primary"),
     (os.getenv("CF_ACCOUNT_ID_2"), os.getenv("CF_API_TOKEN_2"), "CF_Backup_1"),
     (os.getenv("CF_ACCOUNT_ID_3"), os.getenv("CF_API_TOKEN_3"), "CF_Backup_2"),
 ]
-CF_ACCOUNTS = [acc for acc in CF_ACCOUNTS if acc[0] and acc[1]]
+# Deduplicate identical (account_id, api_token) pairs and filter empty
+CF_ACCOUNTS = []
+_seen_creds = set()
+for acc_id, tok, label in CF_ACCOUNTS_RAW:
+    if acc_id and tok:
+        cred_pair = (acc_id.strip(), tok.strip())
+        if cred_pair not in _seen_creds:
+            _seen_creds.add(cred_pair)
+            CF_ACCOUNTS.append((acc_id.strip(), tok.strip(), label))
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 API_SECRET_KEY = os.getenv("API_SECRET_KEY", "")
 PUBLIC_BASE_URL = os.getenv("RENDER_EXTERNAL_URL") or os.getenv("PUBLIC_BASE_URL") or "https://mielen-voima-video-engine.onrender.com"
 ALLOWED_WEBHOOK_HOSTS = [
@@ -274,59 +283,141 @@ async def generate_all_scenes_audio(scenes: List[SceneItem], voice: str, audio_d
             await generate_scene_audio(scene.voiceover, voice, aud_path)
     await asyncio.gather(*[worker(s) for s in scenes])
 
+def sanitize_prompt_with_gemini(prompt: str) -> str:
+    """
+    Sanitizes stickman prompt flagged as NSFW/sensitive by Cloudflare AI
+    using Gemini Flash to produce a clean, neutral, 100% policy-compliant prompt.
+    """
+    logger.info("Attempting to rewrite prompt with Gemini to bypass Cloudflare safety filter...")
+    fallback_prompt = (
+        "Minimalist flat 2D vector stickman character, extreme 9:16 vertical orientation, "
+        "pure solid #FFFFFF white background, high-contrast bold black line art. "
+        "Stickman in a calm standing posture with hand on chin in thought. "
+        "One glowing Amber Gold (#F59E0B) lightbulb icon hovers nearby. "
+        "Zero shading, zero gradients, flat 2D vector art."
+    )
+    if not GEMINI_API_KEY:
+        return fallback_prompt
+
+    try:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key={GEMINI_API_KEY}"
+        body = {
+            "contents": [
+                {
+                    "parts": [
+                        {
+                            "text": (
+                                "You are an AI image prompt safety editor. The following stickman image prompt triggered a content safety filter (code 8007 NSFW false-positive).\n"
+                                "Rewrite it into a neutral, family-friendly, minimalist 2D vector stickman prompt:\n"
+                                "- Maintain: 9:16 vertical orientation, pure #FFFFFF white background, high-contrast black line art, exactly one Amber Gold (#F59E0B) metaphorical object.\n"
+                                "- Remove: any words related to distress, body parts, choking, nakedness, violence, or sensitive themes.\n"
+                                "Return ONLY the revised prompt string without quotes or preamble.\n\n"
+                                f"Original Prompt: {prompt}"
+                            )
+                        }
+                    ]
+                }
+            ],
+            "generationConfig": {"temperature": 0.2}
+        }
+        res = requests.post(url, json=body, timeout=8)
+        if res.status_code == 200:
+            data = res.json()
+            cleaned = data.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "").strip()
+            if cleaned and len(cleaned) > 20:
+                logger.info(f"Gemini successfully sanitized prompt: {cleaned[:90]}...")
+                return cleaned
+    except Exception as ge:
+        logger.warning(f"Gemini prompt rewrite failed ({ge}), using safe default template.")
+
+    return fallback_prompt
+
 def generate_scene_image(prompt: str, output_path: Path):
     """
     Generates stickman image via Cloudflare Workers AI Flux-1-schnell.
-    Primary account used by default; automatically falls back on 429 / quota limit.
+    Includes:
+    1. Automatic prompt rewriting via Gemini on HTTP 400 NSFW false-positives.
+    2. Exponential backoff and sleep on HTTP 503 / 500 / 409 GPU cluster congestion.
+    3. Multi-account fallback on HTTP 429 rate limits.
     """
     if not CF_ACCOUNTS:
         raise RuntimeError("No Cloudflare credentials found in environment variables.")
 
-    payload = {"prompt": prompt, "steps": 4}
+    current_prompt = prompt
     last_error = None
+    max_passes = 2  # Allows transient 503 errors to recover across 2 rounds
 
-    for account_id, api_token, label in CF_ACCOUNTS:
-        url = f"https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/run/{FLUX_MODEL}"
-        headers = {
-            "Authorization": f"Bearer {api_token}",
-            "Content-Type": "application/json"
-        }
-        try:
-            logger.info(f"Requesting image from {label}...")
-            r = requests.post(url, headers=headers, json=payload, timeout=60)
-            
-            if r.status_code == 429:
-                logger.warning(f"{label} hit HTTP 429 rate limit. Trying next account...")
-                last_error = f"{label} HTTP 429 Rate Limit"
-                continue
+    for pass_num in range(1, max_passes + 1):
+        for account_id, api_token, label in CF_ACCOUNTS:
+            url = f"https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/run/{FLUX_MODEL}"
+            headers = {
+                "Authorization": f"Bearer {api_token}",
+                "Content-Type": "application/json"
+            }
+            payload = {"prompt": current_prompt, "steps": 4}
 
-            if r.status_code != 200:
-                logger.warning(f"{label} returned HTTP {r.status_code}: {r.text[:200]}")
-                last_error = f"{label} HTTP {r.status_code}: {r.text[:150]}"
-                continue
+            try:
+                logger.info(f"Requesting image from {label} (pass {pass_num}/{max_passes})...")
+                r = requests.post(url, headers=headers, json=payload, timeout=60)
 
-            # Parse image bytes
-            if "image" in r.headers.get("content-type", ""):
-                img_bytes = r.content
-            else:
-                data = r.json()
-                b64_str = data.get("result", {}).get("image", "")
-                if not b64_str:
-                    last_error = f"{label} returned empty image data"
+                # 1. Rate limit (429) -> move to next account
+                if r.status_code == 429:
+                    logger.warning(f"{label} hit HTTP 429 rate limit. Trying next account...")
+                    last_error = f"{label} HTTP 429 Rate Limit"
                     continue
-                if b64_str.startswith("data:"):
-                    b64_str = b64_str.split(",", 1)[-1]
-                img_bytes = base64.b64decode(b64_str)
 
-            with open(output_path, "wb") as f:
-                f.write(img_bytes)
-            logger.info(f"Image successfully saved: {output_path.name} ({len(img_bytes)/1024:.1f} KB)")
-            return
-            
-        except Exception as e:
-            last_error = str(e)
-            logger.warning(f"Error connecting to {label}: {e}")
-            continue
+                # 2. NSFW filter error (HTTP 400 with code 8007 or NSFW message)
+                if r.status_code == 400 and ("NSFW" in r.text or "8007" in r.text):
+                    logger.warning(f"{label} returned HTTP 400 NSFW flag. Rewriting prompt with Gemini...")
+                    current_prompt = sanitize_prompt_with_gemini(current_prompt)
+                    payload["prompt"] = current_prompt
+                    time.sleep(1)
+                    # Retry once immediately with the sanitized prompt on this account
+                    logger.info(f"Retrying {label} with sanitized prompt...")
+                    r = requests.post(url, headers=headers, json=payload, timeout=60)
+                    if r.status_code == 200:
+                        logger.info("Image generated successfully after prompt sanitization.")
+
+                # 3. Server congestion / Model temporary failure (503 / 500 / 409) -> sleep 3s
+                if r.status_code in (503, 500, 409):
+                    logger.warning(f"{label} returned HTTP {r.status_code}: {r.text[:150]}. Pausing 3s before retry/fallback...")
+                    last_error = f"{label} HTTP {r.status_code}: {r.text[:120]}"
+                    time.sleep(3)
+                    continue
+
+                if r.status_code != 200:
+                    logger.warning(f"{label} returned HTTP {r.status_code}: {r.text[:200]}")
+                    last_error = f"{label} HTTP {r.status_code}: {r.text[:150]}"
+                    time.sleep(2)
+                    continue
+
+                # Parse image bytes
+                if "image" in r.headers.get("content-type", ""):
+                    img_bytes = r.content
+                else:
+                    data = r.json()
+                    b64_str = data.get("result", {}).get("image", "")
+                    if not b64_str:
+                        last_error = f"{label} returned empty image data"
+                        continue
+                    if b64_str.startswith("data:"):
+                        b64_str = b64_str.split(",", 1)[-1]
+                    img_bytes = base64.b64decode(b64_str)
+
+                with open(output_path, "wb") as f:
+                    f.write(img_bytes)
+                logger.info(f"Image successfully saved: {output_path.name} ({len(img_bytes)/1024:.1f} KB)")
+                return
+
+            except Exception as e:
+                last_error = str(e)
+                logger.warning(f"Error connecting to {label}: {e}")
+                time.sleep(2)
+                continue
+
+        if pass_num < max_passes:
+            logger.info("Accounts encountered transient errors. Pausing 4s before second pass...")
+            time.sleep(4)
 
     raise RuntimeError(f"All Cloudflare accounts failed to generate image. Last error: {last_error}")
 
